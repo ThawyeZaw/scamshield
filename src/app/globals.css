@@ -1,11 +1,38 @@
 @import "tailwindcss";
 
+@theme inline {
+  --font-sans: var(--font-inter), "Noto Sans Myanmar", "Myanmar Text", ui-sans-serif, system-ui, sans-serif;
+}
+
 :root {
   --background: #FAF9F6;
   --foreground: #0F172A;
+  --muted: #475569;
+  --accent: #DAA520;
 }
 
 body {
   background-color: var(--background);
   color: var(--foreground);
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 250ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up {
+    animation: none;
+  }
 }
