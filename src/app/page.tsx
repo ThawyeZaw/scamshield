@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import MessageInput from "@/components/MessageInput";
+import OwlMascot, { type MascotMood } from "@/components/OwlMascot";
 import RecentScans from "@/components/RecentScans";
-import ResultCard from "@/components/ResultCard";
+import StatusPanel from "@/components/StatusPanel";
 import type { AnalyzeResponse, ScanHistoryItem } from "@/types/scam";
 
 const STORAGE_KEY = "scamshield_history";
@@ -95,6 +96,25 @@ export default function HomePage() {
   const [activeScanId, setActiveScanId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const statusPanelRef = useRef<HTMLDivElement | null>(null);
+
+  function scrollToStatusOnPortrait() {
+    if (typeof window === "undefined") return;
+    const isSplitLayout = window.matchMedia(
+      "(min-width: 768px), (orientation: landscape) and (min-width: 640px)"
+    ).matches;
+    if (isSplitLayout) return;
+
+    const prefersReducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    window.requestAnimationFrame(() => {
+      statusPanelRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+  }
 
   const history = useSyncExternalStore(
     subscribeHistory,
@@ -173,6 +193,7 @@ export default function HomePage() {
       setResult(payload);
       setActiveScanId(newId);
       persistHistory([newItem, ...history].slice(0, MAX_HISTORY_ITEMS));
+      scrollToStatusOnPortrait();
     } catch {
       setError("Network error. Please check your connection and try again.");
     } finally {
@@ -185,6 +206,7 @@ export default function HomePage() {
     setMessage(scan.message);
     setResult(scan.result);
     setActiveScanId(scan.id);
+    scrollToStatusOnPortrait();
   }
 
   function handleClearHistory() {
@@ -199,13 +221,27 @@ export default function HomePage() {
     notifyHistoryListeners();
   }
 
+  const mascotMood: MascotMood = isLoading
+    ? "scanning"
+    : error
+      ? "error"
+      : result
+        ? result.risk_level
+        : message.trim().length > 0
+          ? "ready"
+          : "idle";
+
+  const resultKey =
+    activeScanId ??
+    (result ? `${result.risk_score}-${result.verdict_summary}` : null);
+
   return (
-    <main className="mx-auto max-w-2xl px-4 py-10">
-      <div className="space-y-6">
-        <header className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-amber-200/80 bg-white shadow-sm">
+    <div className="min-h-screen bg-editorial-canvas">
+      <main className="workspace-shell mx-auto px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-200/80 pb-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-300/80 bg-white shadow-sm">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
@@ -214,60 +250,88 @@ export default function HomePage() {
                   strokeWidth={2}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  className="h-6 w-6 text-[#DAA520]"
+                  className="h-5 w-5 text-[#DAA520]"
                   aria-hidden="true"
                 >
                   <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                   <path d="m9 12 2 2 4-4" />
                 </svg>
               </div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-[#0F172A] sm:text-3xl">
+              <h1 className="font-display text-2xl tracking-tight text-[#0F172A] sm:text-[26px]">
                 ScamShield
               </h1>
             </div>
 
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/70 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
-              <span
-                className="h-1.5 w-1.5 rounded-full bg-[#DAA520]"
-                aria-hidden="true"
-              />
-              Instant AI Check · No Login
-            </span>
+            <span
+              className="hidden h-4 w-px bg-slate-300/90 lg:inline-block"
+              aria-hidden="true"
+            />
+
+            <p className="text-xs leading-relaxed text-[#475569] sm:text-sm">
+              Paste a suspicious SMS, Telegram message, or job offer for an instant
+              red-flag check.
+            </p>
           </div>
 
-          <p className="text-sm leading-relaxed text-[#475569] sm:text-base">
-            Paste a suspicious SMS, Telegram message, or job offer for an instant
-            red-flag check.
-          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/80 bg-amber-50/90 px-3 py-1 font-mono text-[11px] font-semibold text-amber-900 shadow-2xs">
+            <span
+              className="h-1.5 w-1.5 rounded-full bg-[#DAA520]"
+              aria-hidden="true"
+            />
+            Instant AI Check · No Login
+          </span>
         </header>
 
-        <MessageInput
-          message={message}
-          onChange={(value) => {
-            setMessage(value);
-            if (activeScanId) setActiveScanId(null);
-          }}
-          onAnalyze={handleAnalyze}
-          isLoading={isLoading}
-          error={error}
-          onClearError={() => setError(null)}
-        />
+        <div className="workspace-grid mt-5">
+          <div className="workspace-area-input">
+            <MessageInput
+              message={message}
+              onChange={(value) => {
+                setMessage(value);
+                if (activeScanId) setActiveScanId(null);
+              }}
+              onAnalyze={handleAnalyze}
+              isLoading={isLoading}
+              error={error}
+              onClearError={() => setError(null)}
+            />
+          </div>
 
-        {result && <ResultCard result={result} />}
+          <div
+            ref={statusPanelRef}
+            id="status-panel"
+            className="workspace-area-status space-y-4"
+          >
+            <OwlMascot
+              mood={mascotMood}
+              score={result?.risk_score}
+              tacticsCount={result?.tactics.length}
+            />
 
-        <RecentScans
-          scans={history}
-          activeScanId={activeScanId}
-          onSelectScan={handleSelectScan}
-          onClearHistory={handleClearHistory}
-          isHydrated={isHydrated}
-        />
+            <StatusPanel
+              isLoading={isLoading}
+              hasMessage={message.trim().length > 0}
+              result={result}
+              resultKey={resultKey}
+            />
+          </div>
 
-        <footer className="pt-1 text-center text-xs text-[#475569]">
+          <div className="workspace-area-history">
+            <RecentScans
+              scans={history}
+              activeScanId={activeScanId}
+              onSelectScan={handleSelectScan}
+              onClearHistory={handleClearHistory}
+              isHydrated={isHydrated}
+            />
+          </div>
+        </div>
+
+        <footer className="mt-6 pt-2 text-center text-xs text-[#475569]">
           ScamShield checks messages on demand and stores recent scans only in your
           browser. Always verify financial requests through official channels.
         </footer>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }
